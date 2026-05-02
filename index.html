@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Sky Run</title>
+<style>
+html,body{height:100%;margin:0;background:#68b7ff;font-family:system-ui,Arial}
+#wrap{display:flex;flex-direction:column;height:100%}
+header{padding:8px 12px;background:#0b499b;color:#fff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+header button{padding:6px 10px;border:0;border-radius:6px;cursor:pointer}
+#ui{margin-left:auto;display:flex;gap:8px;align-items:center}
+#game{flex:1;display:grid;place-items:center;background:linear-gradient(#a7d7ff,#e8f5ff)}
+canvas{border:4px solid #0b499b;border-radius:12px;background:transparent;max-width:100%;height:auto}
+footer{font-size:12px;padding:6px 10px;color:#012;background:#dff0ff}
+#shopBack{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0007}
+#shop{width:min(960px,96vw);background:#fff;border-radius:16px;padding:16px;box-shadow:0 10px 40px #0006}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.card{border:1px solid #e4e7ee;border-radius:12px;padding:10px}
+.card img{display:block;margin:4px auto;max-width:160px;height:auto}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.badge{background:#eef6ff;color:#0b499b;padding:2px 8px;border-radius:8px;font-weight:600}
+.pill{padding:6px 10px;border-radius:999px;border:1px solid #cdd;background:#f6f9ff;cursor:pointer}
+.pill[disabled]{opacity:.55;cursor:not-allowed}
+.opt{display:flex;align-items:center;gap:6px;margin:4px 0}
+</style>
+</head>
+<body>
+<div id="wrap">
+<header>
+<strong>🌤️ Sky Run</strong>
+<button id="btnReset">↺ Сброс</button>
+<button id="btn1">1</button><button id="btn2">2</button><button id="btn3">3⭐</button>
+<button id="btn4">4🏔️</button><button id="btn5">5🏙️</button><button id="btn6">6🗼</button>
+<button id="btn7">7🏛️</button><button id="btn8">8🐫</button><button id="btn9">9🗻</button>
+<button id="btn10">10🗽</button><button id="btn11">11🏙️</button>
+<button id="btnShop">🛒 Магазин</button>
+<div id="ui">Мир:
+<select id="timeSel"><option value="morning">утро</option><option value="evening">вечер</option><option value="night">ночь</option></select>
+<span id="status">Загрузка…</span>
+</div>
+</header>
+<div id="game"><canvas id="c" width="1024" height="576"></canvas></div>
+<footer>Движение: ← →  |  Прыжок: Пробел  |  Удар: Z  |  Перезапуск: R  |  Уровень 3 — сбор чупсов на время.</footer>
+</div>
+
+<div id="shopBack"><div id="shop">
+<button class="pill" id="closeShop" style="float:right">Закрыть</button>
+<h2>Магазин <span class="badge" id="moneyBadge">$0</span></h2>
+<div class="grid">
+  <div class="card">
+    <div class="row"><b>Скины</b><span class="badge">выбор 1 из 3</span></div>
+    <div class="opt"><input type="radio" name="skin" value="hero" id="skin-hero"><label for="skin-hero">Стандартный</label></div>
+    <div class="opt"><input type="radio" name="skin" value="skin100-1" id="skin-100" disabled><label for="skin-100">Скин за 100$</label></div>
+    <div class="opt"><input type="radio" name="skin" value="skin166" id="skin-166" disabled><label for="skin-166">Скин за 166$</label></div>
+    <div class="row"><button class="pill" id="buySkinA">$100 купить</button><button class="pill" id="buySkinB">$166 купить</button></div>
+  </div>
+  <div class="card">
+    <div class="row"><b
