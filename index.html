@@ -137,7 +137,7 @@ function addClouds(){
 function initLevel(lv){
   level=lv; status='play'; t=0; winTimer=0; jumpPressed=false; for(const k in keys) delete keys[k];
   by('status').textContent='Уровень '+lv+' | $'+dollars;
-  player={x:80,y:H-180,vx:0,vy:0,w:60,h:60,onGround:false,mode:(lv===2?'skate':'run'),facing:1,punchTimer:0,punchCooldown:0,punchHitSet:new Set()};
+  player={x:80,y:H-180,vx:0,vy:0,w:60,h:60,onGround:false,mode:(lv===2?'skate':'run'),facing:1,punchTimer:0,punchCooldown:0,punchHitSet:new Set(),hp:100,invTimer:0};
   pads=[]; enemies=[]; pickups=[]; timeLeft=0; deco=null;
   const groundY=H-110;
   let x=0;
@@ -220,9 +220,8 @@ function initLevel(lv){
     pads.push({x:1060,y:H-255,w:300,h:125,type:'taxi'});
     pads.push({x:1460,y:H-220,w:380,h:95,type:'hotdog'});
     pads.push({x:1890,y:H-220,w:380,h:95,type:'hotdog'});
-    deco={x:2440,y:H-432,w:230,h:432,kind:'liberty_user'};
-    enemies.push({kind:'car',x:900,y:H-190,w:150,h:68,alive:true,stompable:true,speed:75,dir:1,minX:780,maxX:1060});
-    enemies.push({kind:'trolleybus',x:1680,y:H-130,w:180,h:72,alive:true,stompable:true,speed:65,dir:-1,minX:1560,maxX:1840});
+    const libBaseY=H-30-240;
+    enemies.push({kind:'boss',bossType:'liberty',x:2200,y:libBaseY,w:115,h:240,hp:10,maxHp:10,hitFlash:0,stompable:false,alive:true,speed:70,dir:1,minX:1900,maxX:2550,baseY:libBaseY,phase:'moving',phaseTimer:5,jumpT:0});
     finishX=2920;
   } else if(lv===11){
     pads.push({x:340,y:H-310,w:220,h:250,type:'kremlin_tower'});
@@ -289,12 +288,15 @@ function update(dt){
       if(!e.alive||player.punchHitSet.has(e)) continue;
       if(ph.x<e.x+e.w&&ph.x+ph.w>e.x&&ph.y<e.y+e.h&&ph.y+ph.h>e.y){
         player.punchHitSet.add(e);
-        if(e.kind==='boss'){ e.hp--; e.hitFlash=0.4; if(e.hp<=0){e.alive=false;updateMoney(20);} }
-        else { e.alive=false; updateMoney(1); }
+        if(e.kind==='boss'){
+          if(e.bossType==='liberty'&&e.phase==='moving') continue;
+          e.hp--; e.hitFlash=0.4; if(e.hp<=0){e.alive=false;updateMoney(20);}
+        } else { e.alive=false; updateMoney(1); }
       }
     }
   }
 
+  player.invTimer=Math.max(0,player.invTimer-dt);
   const prevY=player.y;
   player.vy+=G*dt;
   player.x+=player.vx*dt;
@@ -302,7 +304,6 @@ function update(dt){
   player.onGround=false;
   if(player.x<0) player.x=0;
 
-  // One-way top collision — player only lands on top of pads, never blocked from sides
   for(const p of pads){
     const a=player,b=p;
     if(a.x+a.w>b.x&&a.x<b.x+b.w&&a.y+a.h>b.y&&a.y<b.y+b.h){
@@ -321,10 +322,17 @@ function update(dt){
     if(hit){
       const wasAbove=prevY+a.h<=b.y+5;
       const stompable=(e.stompable!==undefined)?e.stompable:(e.kind==='car'||e.kind==='trolleybus'||e.kind==='snake');
-      if(stompable&&wasAbove&&a.vy>0){
-        if(e.kind==='boss'){ e.hp--; e.hitFlash=0.4; if(e.hp<=0){e.alive=false;updateMoney(20);} }
-        else { e.alive=false; updateMoney(+1); }
-        a.y=b.y-a.h; a.vy=-STOMP_BOUNCE; a.onGround=false;
+      if(e.kind==='boss'){
+        if(stompable&&wasAbove&&a.vy>0){
+          e.hp--; e.hitFlash=0.4; a.y=b.y-a.h; a.vy=-STOMP_BOUNCE; a.onGround=false;
+          if(e.hp<=0){e.alive=false;updateMoney(30);}
+        } else if(player.invTimer<=0){
+          const dmg=e.bossType==='liberty'?10:20;
+          player.hp=Math.max(0,player.hp-dmg); player.invTimer=1.5;
+          if(player.hp<=0){status='dead';by('status').textContent='Ой! Нажми ↺';}
+        }
+      } else if(stompable&&wasAbove&&a.vy>0){
+        e.alive=false; updateMoney(+1); a.y=b.y-a.h; a.vy=-STOMP_BOUNCE; a.onGround=false;
       } else {
         status='dead'; by('status').textContent='Ой! Нажми ↺';
       }
@@ -354,7 +362,25 @@ function update(dt){
 
   for(const c of clouds){ c.x+=c.speed*dt; if(c.x>finishX+1200) c.x=-200; }
   for(const e of enemies){
-    if(!e.alive||!e.speed||e.dir===undefined) continue;
+    if(!e.alive) continue;
+    if(e.bossType==='liberty'){
+      e.phaseTimer-=dt;
+      if(e.phaseTimer<=0){
+        e.phase=e.phase==='moving'?'stopped':'moving';
+        e.phaseTimer=e.phase==='moving'?5:3;
+      }
+      if(e.phase==='moving'){
+        const d=player.x-e.x; e.dir=d>0?1:-1;
+        e.x+=e.speed*e.dir*dt;
+        e.x=Math.max(e.minX,Math.min(e.maxX,e.x));
+        e.jumpT+=dt;
+        e.y=e.baseY-Math.abs(Math.sin(e.jumpT*3))*50;
+      } else {
+        e.y=e.baseY;
+      }
+      continue;
+    }
+    if(!e.speed||e.dir===undefined) continue;
     e.x+=e.speed*e.dir*dt;
     if(e.x<e.minX){ e.x=e.minX; e.dir=1; }
     if(e.x>e.maxX){ e.x=e.maxX; e.dir=-1; }
@@ -478,6 +504,29 @@ function drawSky(){
 
 function drawBoss(e){
   ctx.save();
+  if(e.bossType==='liberty'){
+    if(e.hitFlash>0) ctx.globalAlpha=0.5+0.5*Math.sin(e.hitFlash*25);
+    ctx.drawImage(IMGS.liberty_user,e.x,e.y,e.w,e.h);
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(e.x-8,e.y-34,e.w+16,14);
+    const pct=e.hp/e.maxHp;
+    ctx.fillStyle=pct>0.5?'#22ee22':pct>0.2?'#eeaa22':'#ee2222';
+    ctx.fillRect(e.x-8,e.y-34,(e.w+16)*pct,14);
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.strokeRect(e.x-8,e.y-34,e.w+16,14);
+    ctx.fillStyle='#fff'; ctx.font='bold 12px system-ui'; ctx.textAlign='center';
+    ctx.fillText('❤️'.repeat(e.hp),e.x+e.w/2,e.y-22);
+    if(e.phase==='stopped'){
+      ctx.fillStyle='rgba(255,230,0,0.92)'; ctx.fillRect(e.x-8,e.y-56,e.w+16,18);
+      ctx.fillStyle='#111'; ctx.font='bold 12px system-ui';
+      ctx.fillText('👊 БЕЙ! (Z)',e.x+e.w/2,e.y-42);
+    } else {
+      ctx.fillStyle='rgba(80,80,80,0.75)'; ctx.fillRect(e.x-8,e.y-56,e.w+16,18);
+      ctx.fillStyle='#eee'; ctx.font='12px system-ui';
+      ctx.fillText('бежит…',e.x+e.w/2,e.y-42);
+    }
+    ctx.textAlign='left';
+    ctx.restore(); return;
+  }
   const fl=e.hitFlash>0,stone=fl?'#cc6655':'#8899bb',dark=fl?'#993322':'#445577';
   if(fl){ctx.shadowColor='#ff2200';ctx.shadowBlur=18;}
   ctx.fillStyle=stone;
@@ -554,6 +603,7 @@ function draw(){
   if(level!==5&&level!==6&&level!==7&&level!==8&&level!==10&&level!==11&&cosmo&&cosmo.show)
     ctx.drawImage(IMGS.cosmo,cosmo.x,cosmo.y,80,110);
 
+  if(player.invTimer>0) ctx.globalAlpha=0.4+0.6*Math.abs(Math.sin(player.invTimer*15));
   const skin=(IMGS[equipped.skin]&&IMGS[equipped.skin].naturalWidth>0)?IMGS[equipped.skin]:IMGS.hero;
   const scale=90,drawY=Math.min(player.y,H-120);
   const skH=IMGS.skate.height||120,skW=IMGS.skate.width||120;
@@ -577,6 +627,7 @@ function draw(){
     }
   }
 
+  ctx.globalAlpha=1;
   if(player.punchTimer>0){
     const px=player.facing===1?player.x+player.w-5:player.x-25;
     const a=player.punchTimer/0.25;
@@ -591,10 +642,17 @@ function draw(){
 
   ctx.restore();
 
-  ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(0,0,420,52);
+  ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(0,0,480,58);
   ctx.fillStyle='#fff'; ctx.font='bold 18px system-ui';
   ctx.fillText('Уровень '+level,10,22);
   ctx.fillText('💰 $'+dollars,160,22);
+  const hpPct=player.hp/100;
+  ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(10,30,200,14);
+  ctx.fillStyle=hpPct>0.5?'#44ee44':hpPct>0.25?'#eeaa22':'#ee2222';
+  ctx.fillRect(10,30,200*hpPct,14);
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.strokeRect(10,30,200,14);
+  ctx.fillStyle='#fff'; ctx.font='bold 12px system-ui';
+  ctx.fillText('HP '+player.hp+'%',216,42);
   if(level===3){
     const pct=Math.max(0,timeLeft)/60;
     ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(10,30,200,12);
@@ -618,9 +676,9 @@ function draw(){
   if(bossWarning){
     ctx.fillStyle='rgba(160,0,0,0.72)'; ctx.fillRect(W/2-200,H/2-40,400,80);
     ctx.fillStyle='#fff'; ctx.font='bold 22px system-ui'; ctx.textAlign='center';
-    ctx.fillText('⚔️ Сначала победи босса!',W/2,H/2-6);
+    ctx.fillText(level===10?'🗽 Победи Статую Свободы!':'⚔️ Сначала победи босса!',W/2,H/2-6);
     ctx.font='14px system-ui';
-    ctx.fillText('Топчи или бей Z',W/2,H/2+20);
+    ctx.fillText(level===10?'Бей Z когда она остановится (10 ударов)':'Топчи или бей Z',W/2,H/2+20);
     ctx.textAlign='left';
   }
 }
